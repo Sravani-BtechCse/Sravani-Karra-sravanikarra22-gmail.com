@@ -21,7 +21,15 @@ Implemented `verifyAccessToken` in `server/auth.js` validating:
 5. Expiration (`exp <= now`), issuer (`remoteops`), audience (`remoteops-api`), and non-empty `jti`.
 Ran `node scripts/check-jwt.js`: 43/43 passed.
 
-## Phase 2 — caller context and the resolution engine
+## 2026-09-26 · Phase 2 — caller context and the resolution engine
+
+Expected a scope-hierarchy model where a device-scoped `allow` grant could override an org-level baseline or deny.
+Observed: `PERMISSIONS.md §4` and `check-permissions.js` ("device-scoped ALLOW does NOT carve out org-wide DENY") dictate that `DENY` wins unconditionally regardless of scope. Furthermore, `npm run personalisation` proved that hardcoding the 5-role/19-permission matrix fails because the database carries an overlay (role `reviewer`, permission `device:reboot`).
+Implemented:
+- `server/context.js`: verifies bearer tokens, enforces structural org isolation (cross-org parameter mismatch returns 404 `notFound()`, never 403), checks membership status (`removed` -> 401, `org_deleted_at` -> 404), and checks freshness against `perm_version` for non-suspended members.
+- `server/permissions.js`: dynamic table-driven resolution engine (`loadCatalogue`, `loadBaseline`, `collectGrants`). Evaluates all `deny` grants first into a `denied` map before processing role baselines or `allow` grants. Implemented batched resolution (`resolveDevices`) with single-query grant loading to avoid N+1 per row.
+Ran `node scripts/check-permissions.js`: 35/35 passed.
+Ran `npm run personalisation`: 18/18 passed.
 
 ## Phase 3 — orgs, members, invites
 
@@ -36,5 +44,6 @@ Ran `node scripts/check-jwt.js`: 43/43 passed.
 ## Phase 8 — hardening
 
 ## Open threads
+
 
 
