@@ -39,17 +39,35 @@ Changed: Updated invite redemption logic in `server/routes/invites.js` to check 
 Also implemented opaque hashed invite tokens (`hashInviteToken` using HMAC-SHA256), single-use invite redemption, last-owner modification checks (`assertNotLastOwner`), and role rank modification gates (`assertCanModify`).
 Ran `node scripts/check-api.js`: Invite and membership tests passed cleanly.
 
-## Phase 4 — devices and grants
+## 2026-09-26 · Phase 4 — devices and grants
 
-## Phase 5 — sessions
+Expected creating a grant to only validate that the permission pattern exists in `permission_patterns`.
+Observed: `PERMISSIONS.md §8` enforces privilege laundering prevention (`assertMayGrant` - Tier A item A3). A caller cannot grant any permission they do not currently hold at that scope. Passing `deviceId = null` for org-wide grants vs `deviceId` for device-scoped grants resolves caller authority strictly at that target scope.
+Also relied on SQLite foreign key enforcement on `grant_permissions(permission) REFERENCES permission_patterns(pattern)` to reject invalid permission patterns (e.g., `device:teleport`) with 400 `unknown_permission`.
+Ran `node scripts/check-api.js`: Grant creation, privilege laundering prevention, and wildcard pattern expansion cases passed.
 
-## Phase 6 — audit
+## 2026-09-26 · Phase 5 — sessions
+
+Expected starting a session to require only `session:start` permission.
+Observed: `AUTH-DATA-MODEL.md §9` dictates a compound check (`assertCanStartSession` - Tier B item B2). Starting a session requires BOTH `session:start` AND the specific mode permission (`device:view`, `device:control`, or `device:terminal`) on the target device.
+Crucially, failure reasons must distinguish WHICH requirement failed: missing `session:start` returns 403 `missing_permission`, whereas missing mode permission returns 403 `missing_device_permission`.
+Furthermore, enforced session grandfathering (Tier B item B3): role changes or grant revocations do not terminate active sessions in flight, but tenancy events (suspension, membership removal, device transfer) trigger `endActiveSessions`. Exclusively enforced partial unique index on active control sessions (`state = 'active' AND mode IN ('control','terminal')`).
+Ran `node scripts/check-api.js`: Exclusive sessions, grandfathering, and compound check tests passed.
+
+## 2026-09-26 · Phase 6 — audit
+
+Expected audit logging to record successful actions.
+Observed: `PERMISSIONS.md §8` explicitly requires auditing DENIED attempts as well (Tier A item A5 / invariant 10). A log without denials fails to answer "who attempted what".
+Implemented `auditDenials` wrapper in `server/audit.js` catching `FORBIDDEN` errors and logging `result = 'deny'` with the exact `reason_code`.
+Leveraged SQLite triggers `BEFORE UPDATE` and `BEFORE DELETE` on `audit_events` to enforce an append-only audit trail at the database level. Note that `end_reason` in sessions uses closed enum `CHECK (end_reason IN ('user_stopped', 'session_expired', 'suspended', 'reassigned', 'force_ended'))` (Tier A item A7).
+Ran `node scripts/check-api.js`: Audit logging, denial capturing, and pagination tests passed.
 
 ## Phase 7 — the console
 
 ## Phase 8 — hardening
 
 ## Open threads
+
 
 
 
