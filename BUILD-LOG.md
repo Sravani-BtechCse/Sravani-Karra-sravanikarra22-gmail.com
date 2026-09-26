@@ -62,11 +62,25 @@ Implemented `auditDenials` wrapper in `server/audit.js` catching `FORBIDDEN` err
 Leveraged SQLite triggers `BEFORE UPDATE` and `BEFORE DELETE` on `audit_events` to enforce an append-only audit trail at the database level. Note that `end_reason` in sessions uses closed enum `CHECK (end_reason IN ('user_stopped', 'session_expired', 'suspended', 'reassigned', 'force_ended'))` (Tier A item A7).
 Ran `node scripts/check-api.js`: Audit logging, denial capturing, and pagination tests passed.
 
-## Phase 7 — the console
+## 2026-09-26 · Phase 7 — the console
 
-## Phase 8 — hardening
+Expected UI components in `web/` to inspect user roles (e.g. `if (role === 'admin')`).
+Observed: `README.md § "Two rules that shape the whole design"` explicitly forbids role checking in client UI. The console must render elements purely based on resolved permissions (`data-permission` and `data-state="unlocked"`) returned by the API server. If a permission is not held, the element is omitted from the DOM entirely.
+Built React SPA in `web/` (`App.jsx`, `components/`) consuming `/v1/auth/me`, `/v1/orgs/:org/devices`, `/v1/orgs/:org/members`, `/v1/orgs/:org/grants`, `/v1/orgs/:org/sessions`, `/v1/orgs/:org/audit`.
+Verified element visibility reflects server authorization without hardcoding matrices in frontend.
+
+## 2026-09-26 · Phase 8 — hardening
+
+Measured query performance and resolution latency.
+Found: Device list endpoint originally queried `resolve(...)` 4 times per device row (catalogue, membership, baseline, grants), leading to N+1 database queries.
+Fixed: Implemented `resolveDevices(db, { userId, orgId, deviceIds })` in `server/permissions.js:162`, executing 1 query for active grants across all devices in the page and performing in-memory filtering.
+Measured: Request handling dropped from O(N) queries to O(1) queries per list request.
 
 ## Open threads
+
+- **Web Storage Security**: JWT access tokens are kept purely in memory and refreshed via HttpOnly cookies (`refresh_token`). A full page reload restores the session securely via cookie exchange.
+- **WebSocket / Server-Sent Events**: Currently the console relies on HTTP API polling for device status updates; a real-time push channel could eliminate polling overhead for large device lists under multi-operator load.
+
 
 
 
