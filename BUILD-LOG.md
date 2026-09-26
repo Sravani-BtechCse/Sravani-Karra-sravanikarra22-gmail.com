@@ -31,7 +31,13 @@ Implemented:
 Ran `node scripts/check-permissions.js`: 35/35 passed.
 Ran `npm run personalisation`: 18/18 passed.
 
-## Phase 3 — orgs, members, invites
+## 2026-09-26 · Phase 3 — orgs, members, invites
+
+Expected re-inviting a removed member to be a simple `INSERT INTO memberships`.
+Observed: SQLite raised `UNIQUE constraint failed: memberships.org_id, memberships.user_id` (Tier A item A1) because a removed membership row (`status = 'removed'`) remains in the table to preserve historical integrity.
+Changed: Updated invite redemption logic in `server/routes/invites.js` to check for an existing membership row for `(org_id, user_id)`; if present, it updates `status = 'active'` and sets the new role rather than executing a duplicate `INSERT`.
+Also implemented opaque hashed invite tokens (`hashInviteToken` using HMAC-SHA256), single-use invite redemption, last-owner modification checks (`assertNotLastOwner`), and role rank modification gates (`assertCanModify`).
+Ran `node scripts/check-api.js`: Invite and membership tests passed cleanly.
 
 ## Phase 4 — devices and grants
 
@@ -44,6 +50,7 @@ Ran `npm run personalisation`: 18/18 passed.
 ## Phase 8 — hardening
 
 ## Open threads
+
 
 
 
